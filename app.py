@@ -30,13 +30,6 @@ from scipy.stats import skew, kurtosis
 from scipy.stats import norm
 import scipy.optimize as sco
 from pypfopt import EfficientFrontier, risk_models, expected_returns
-import docx
-from docx import Document
-from docx.shared import Pt
-from docx.enum.style import WD_STYLE_TYPE
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
-from docx.shared import Inches
 from typing import Dict, List, Literal, Optional
 from decimal import Decimal
 
