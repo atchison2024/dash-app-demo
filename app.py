@@ -43,9 +43,9 @@ from decimal import Decimal
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
-user_name = getpass.getuser()
-docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
-os.chdir(docs_directory)
+#user_name = getpass.getuser()
+#docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
+#os.chdir(docs_directory)
 
 color_ACdarkblue = "#3D555E"  #BG Grey/Green
 color_ACdarkblue60 = "#86959B"  #BG Grey/Green
@@ -503,8 +503,7 @@ df_loans = pd.read_json(StringIO(current_loans))
 ############################ Initialize Dash app########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
-server = Flask(__name__)
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, server=server, prevent_initial_callbacks = True)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], prevent_initial_callbacks = True)
 server = app.server
 port_number = 1050
 app.title = "KeyInvest Investment Analyzer"
