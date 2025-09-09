@@ -39,7 +39,7 @@ from docx.oxml import OxmlElement
 from docx.shared import Inches
 from typing import Dict, List, Literal, Optional
 from decimal import Decimal
-server = app.server
+
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
@@ -505,6 +505,7 @@ df_loans = pd.read_json(StringIO(current_loans))
 ########################################################################################################################################################
 server = Flask(__name__)
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, server=server, prevent_initial_callbacks = True)
+server = app.server
 port_number = 1050
 app.title = "KeyInvest Investment Analyzer"
 
