@@ -39,7 +39,7 @@ from docx.oxml import OxmlElement
 from docx.shared import Inches
 from typing import Dict, List, Literal, Optional
 from decimal import Decimal
-
+server = app.server
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
