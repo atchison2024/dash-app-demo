@@ -486,7 +486,7 @@ def compute_weekly_summary(df):
 
 df_ledger = ledger_to_df(ledger)
 df_ledger = df_ledger.sort_values('date', ascending=True, kind='mergesort').reset_index(drop=True)
-df_ledger.to_excel('ledger.xlsx', index=False)
+#df_ledger.to_excel('ledger.xlsx', index=False)
 weekly_summary = compute_weekly_summary(df_ledger)
 
 df_loans = pd.read_json(StringIO(current_loans))
