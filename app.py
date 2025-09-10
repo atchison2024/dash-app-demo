@@ -32,11 +32,11 @@ import scipy.optimize as sco
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 from typing import Dict, List, Literal, Optional
 from decimal import Decimal
+from plotly.subplots import make_subplots
 
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
-
 color_ACdarkblue = "#3D555E"  #BG Grey/Green
 color_ACdarkblue60 = "#86959B"  #BG Grey/Green
 color_ACdarkblue130 = "#223137"  #BG Grey/Green
@@ -614,7 +614,7 @@ df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be 
 ############################ Initialize Dash app########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
-
+#server = Flask(__name__)
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, prevent_initial_callbacks = True)
 server = app.server
 #port_number = 1050
@@ -733,17 +733,20 @@ def update_weekly_detail(clickData, default_date):
     filtered_loans = df_loans[(pd.to_datetime(df_loans["Maturity Date"]) >= week_end)]
     filtered_level1 = filtered_loans[filtered_loans['Level'] == 1]
     filtered_level2 = filtered_loans[filtered_loans['Level'] == 2]
-    lvr_end_week = (filtered_loans['LVR'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum()
-    lvr_end_week1 = (filtered_level1['LVR'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum()
-    lvr_end_week2 = (filtered_level2['LVR'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum()
+    lvr_end_week = (filtered_loans['LVR'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum() * 100
+    lvr_end_week1 = (filtered_level1['LVR'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum() * 100
+    lvr_end_week2 = (filtered_level2['LVR'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum() * 100
 
-    tr = (filtered_loans['Interest Rate'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum()
-    tr1 = (filtered_level1['Interest Rate'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum()
-    tr2 = (filtered_level2['Interest Rate'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum()
+    tr = (filtered_loans['Interest Rate'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum() * 100
+    tr1 = (filtered_level1['Interest Rate'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum() * 100
+    tr2 = (filtered_level2['Interest Rate'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum() * 100
 
-    df_portfolio_summary['Tier 1'] = [len(filtered_level1), lvr_end_week1, tr, '', filtered_level1['Amount'].mean()]
-    df_portfolio_summary['Tier 2'] = [len(filtered_level2), lvr_end_week2, tr1, '', filtered_level2['Amount'].mean()]
-    df_portfolio_summary['Total'] = [len(filtered_loans), lvr_end_week, tr2, '', filtered_loans['Amount'].mean()]
+    df_portfolio_summary['Tier 1'] = [len(filtered_level1), lvr_end_week1, tr, np.nan, filtered_level1['Amount'].mean()]
+    df_portfolio_summary['Tier 2'] = [len(filtered_level2), lvr_end_week2, tr1, np.nan, filtered_level2['Amount'].mean()]
+    df_portfolio_summary['Total'] = [len(filtered_loans), lvr_end_week, tr2, np.nan, filtered_loans['Amount'].mean()]
+    for col in ('Tier 1', 'Tier 2', 'Total'):
+        df_portfolio_summary[col] = df_portfolio_summary[col].round(1)
+    df_portfolio_summary.loc[4, ['Tier 1', 'Tier 2', 'Total']] = df_portfolio_summary.loc[4, ['Tier 1', 'Tier 2', 'Total']].apply(lambda x: f"${x:,.1f}")
     ########################################################################################################################################################
     ########################################################################################################################################################
     ############################  week plot and transactoins ########################################################################################################
@@ -764,6 +767,27 @@ def update_weekly_detail(clickData, default_date):
     daily_summary['reference'] = daily_summary['reference'].apply(lambda x: ','.join(x) if isinstance(x, list) else str(x))
 
     notes_in_week = {date: ledger[_fmt_date(date)].get("note", []) for date in daily_summary["date"]}
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    ############################  Allocations ########################################################################################################
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    def create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, group_col, title):
+        df_main = filtered_loans.groupby(group_col)['Amount'].sum().reset_index()
+        df_lvl1 = filtered_level1.groupby(group_col)['Amount'].sum().reset_index()
+        df_lvl2 = filtered_level2.groupby(group_col)['Amount'].sum().reset_index()
+        fig = make_subplots(rows=1, cols=3,  subplot_titles=("Total", "Tier 1", "Tier 2"), specs=[[{"type": "domain"}, {"type": "domain"}, {"type": "domain"}]])
+        for i, df in enumerate([df_main, df_lvl1, df_lvl2], start=1):
+            fig.add_trace(go.Pie(labels=df[group_col], values=df["Amount"], name="Amount"),row=1, col=i)
+        fig.update_traces(textinfo="percent+label", hole=0.3)
+        fig.update_layout(title_text=title, showlegend=True)
+        return fig
+
+    graph_issuer_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Issuer', 'Issuer Allocation')
+    graph_type_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Loan Type', 'Loan Type Allocation')
+    graph_prop_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Property Type', 'Property Type Allocation')
+    graph_state_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'State', 'State Allocation')
+    graph_geo_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Geo Type', 'Geo Type Allocation')
 
     ########################################################################################################################################################
     ########################################################################################################################################################
@@ -793,11 +817,19 @@ def update_weekly_detail(clickData, default_date):
         ),
 
         html.Br(),
+        dbc.Row([dbc.Col(html.Label("Allocations", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
+        dcc.Graph(figure = graph_issuer_allocation),
+        #html.Br(),
+        dcc.Graph(figure = graph_type_allocation),
+        dcc.Graph(figure=graph_prop_allocation),
+        dcc.Graph(figure=graph_state_allocation),
+        dcc.Graph(figure=graph_geo_allocation),
+
+        html.Br(),
         dbc.Row([dbc.Col(html.Label("Portfolio Summary", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
         dash_table.DataTable(
             id="table-portfolio-summary",
-            columns=[{"name": col, "id": col,"type": "numeric","format": Format(precision=1, scheme=Scheme.fixed)  # <-- 1 decimal place
-                } if pd.api.types.is_numeric_dtype(df_portfolio_summary[col]) else {"name": col, "id": col} for col in df_portfolio_summary.columns],
+            columns=[{"name": col, "id": col} for col in df_portfolio_summary.columns],
             data=pd.DataFrame(df_portfolio_summary).to_dict('records'),
             editable=False,
             style_table={'overflowX': 'auto', 'border': '1px solid #ddd', 'minWidth': '100%', },  # 'margin': '20px auto'
@@ -806,7 +838,7 @@ def update_weekly_detail(clickData, default_date):
             style_data={'border': '1px solid #ddd', 'textAlign': 'center', 'font-family': 'Arial', 'padding': '10px'}),
 
         html.Br(),
-        html.H5("Transaction Details:"),
+        dbc.Row([dbc.Col(html.Label("Transaction Details", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
         dash_table.DataTable(
             id="table-transaction",
             columns=[{"name": col, "id": col} for col in daily_summary.columns],
@@ -826,12 +858,8 @@ def update_weekly_detail(clickData, default_date):
     ])
 
 
-
-
-
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################################# Loan Analysis#############################################################################################
-
 if __name__ == "__main__":
     app.run_server(debug=True)
