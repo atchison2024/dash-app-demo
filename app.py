@@ -837,4 +837,4 @@ def update_weekly_detail(clickData, default_date):
 ############################################# Loan Analysis#############################################################################################
 
 if __name__ == "__main__":
-    #app.run_server(debug=True)
+    app.run_server(debug=True)
