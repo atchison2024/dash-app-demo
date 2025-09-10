@@ -36,9 +36,9 @@ from decimal import Decimal
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
-#user_name = getpass.getuser()
-#docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
-#os.chdir(docs_directory)
+user_name = getpass.getuser()
+docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
+os.chdir(docs_directory)
 
 color_ACdarkblue = "#3D555E"  #BG Grey/Green
 color_ACdarkblue60 = "#86959B"  #BG Grey/Green
@@ -54,44 +54,6 @@ color_ACblue130 = "#0E7B96"  #Blue
 color_ACorange = "#F27D11"  #Orange
 color_ACorange60 = "#FCB384"  #Orange
 color_ACorange130 = "#964B06"  #Orange
-
-######################### Class ####################################
-
-class Loan:
-    def __init__(self, name, issuer, fund, loan_ref, project, suburb, post_code, loan_type, property_type, geo_type, state, date_invested, maturity_date, expected_maturity,
-        lvr, interest_rate, fixed_or_variable, reference, base_rate_at_inception, current_base_rate, margin, interest_rate_inception_base,
-        interest_rate_current_base, loan_status, amount,level, freq = 'monthly', amortise = False):
-        ## should be identical with the excel
-        self.name = name
-        self.issuer = issuer
-        self.fund = fund
-        self.loan_ref = loan_ref
-        self.project = project
-        self.suburb = suburb
-        self.post_code = post_code
-        self.loan_type = loan_type
-        self.property_type = property_type
-        self.geo_type = geo_type
-        self.state = state
-        self.date_invested = date_invested
-        self.maturity_date = maturity_date
-        self.expected_maturity = expected_maturity
-        self.lvr = lvr
-        self.interest_rate = interest_rate
-        self.fixed_or_variable = fixed_or_variable
-        self.reference = reference
-        self.base_rate_at_inception = base_rate_at_inception
-        self.current_base_rate = current_base_rate
-        self.margin = margin
-        self.interest_rate_inception_base = interest_rate_inception_base
-        self.interest_rate_current_base = interest_rate_current_base
-        self.loan_status = loan_status
-        self.amount = amount
-        self.level = level
-        self.freq = freq
-        self.amortise = amortise
-
-        #self.interest_start = date_invested
 
 ########################################################################################################################################################
 ########################################################################################################################################################
@@ -179,17 +141,6 @@ def month_ends_between(start: date, end: date, inclusive: bool = True) -> list[d
         d = date(year, month, last_day)
 
     return pd.to_datetime(out, dayfirst=True)
-
-"""
-# ---------- Ledger helpers ----------
-def _infer_principal_and_ref(ledger: dict):
-    Return (principal, reference) from the first item with category=='loan'.
-    for dkey in sorted(ledger.keys(), key=_parse_date):
-        for it in ledger[dkey].get("items", []):
-            if it.get("category") == "loan":
-                return abs(float(it["amount"])), it.get("reference")
-    raise ValueError("No item with category=='loan' found to infer principal.")
-"""
 
 def _recompute_day_totals(day_entry: dict):
     opening = float(day_entry.get("opening", 0.0))
@@ -385,6 +336,163 @@ def add_loan_schedule_to_ledger(
 
     return
 
+
+######################### Class ####################################
+
+class Loan:
+    def __init__(self, name, issuer, fund, loan_ref, project, suburb, post_code, loan_type, property_type, geo_type, state, date_invested, maturity_date, expected_maturity,
+        lvr, interest_rate, fixed_or_variable, reference, base_rate_at_inception, current_base_rate, margin, interest_rate_inception_base,
+        interest_rate_current_base, loan_status, amount,level, freq = 'monthly', amortise = False):
+        ## should be identical with the excel
+        self.name = name
+        self.issuer = issuer
+        self.fund = fund
+        self.loan_ref = loan_ref
+        self.project = project
+        self.suburb = suburb
+        self.post_code = post_code
+        self.loan_type = loan_type
+        self.property_type = property_type
+        self.geo_type = geo_type
+        self.state = state
+        self.date_invested = date_invested
+        self.maturity_date = maturity_date
+        self.expected_maturity = expected_maturity
+        self.lvr = lvr
+        self.interest_rate = interest_rate
+        self.fixed_or_variable = fixed_or_variable
+        self.reference = reference
+        self.base_rate_at_inception = base_rate_at_inception
+        self.current_base_rate = current_base_rate
+        self.margin = margin
+        self.interest_rate_inception_base = interest_rate_inception_base
+        self.interest_rate_current_base = interest_rate_current_base
+        self.loan_status = loan_status
+        self.amount = amount
+        self.level = level
+        self.freq = freq
+        self.amortise = amortise
+
+        #self.interest_start = date_invested
+
+"""
+    def calc_duration(self, bbsw):
+        start = _parse_date(self.date_invested)
+        maturity = _parse_date(self.maturity_date)
+        end_month_date = month_ends_between(start, maturity)
+
+        n = len(end_month_date)
+
+        if n <= 0:
+            raise ValueError("Maturity must be after start, with at least one monthly period.")
+
+        rates = []
+        if self.fixed_or_variable.lower() == 'variable':
+            if not bbsw.empty:
+                for i in range(n):
+                    try:
+                        rates.append(bbsw.loc[i, bbsw_type] / 12.0)
+                    except KeyError:
+                        raise ValueError(f"{bbsw.loc[i, 'Date']} BBSW Date Not found")
+            else:
+                raise ValueError("BBSW not found")
+        else:
+            rates = [float(annual_interest) / 12.0 for _ in range(n)]
+
+        schedule = []
+        remaining = principal
+        cash_dir = "inflow"
+
+        if amortise:
+            for k in range(n):
+                if isclose(rates[k], 0.0, abs_tol=1e-12):
+                    monthly_payment = round(principal / n, 2)
+                else:
+                    monthly_payment = round((rates[k] * principal) / (1 - (1 + rates[k]) ** (-n)), 2)
+                # pay_date = _add_months(start, k)
+                interest = round(remaining * rates[k], 2)
+                principal_comp = round(monthly_payment - interest, 2)
+
+                if k == n - 1:
+                    # Clear rounding on final instalment
+                    principal_comp = round(remaining, 2)
+                    monthly_total = round(interest + principal_comp, 2)
+                else:
+                    monthly_total = monthly_payment
+
+                remaining = round(remaining - principal_comp, 2)
+
+                day_entry = _ensure_ledger_day(ledger, end_month_date[k])
+                if interest > 0:
+                    day_entry["items"].append({
+                        "direction": cash_dir,
+                        "amount": interest,
+                        "category": "interest",
+                        "reference": reference,
+                    })
+                if principal_comp > 0:
+                    day_entry["items"].append({
+                        "direction": cash_dir,
+                        "amount": principal_comp,
+                        "category": "loan_principal",
+                        "reference": reference,
+                    })
+                _recompute_day_totals(day_entry)
+        else:
+            # Interest-only with balloon at maturity
+            monthly_interest = round(principal * r, 2)
+
+            for k in range(n - 1):
+                # pay_date = _add_months(start, k)
+                interest = monthly_interest
+                principal_comp = 0.0
+                total = interest
+
+                day_entry = _ensure_ledger_day(ledger, end_month_date[k])
+                if interest > 0:
+                    day_entry["items"].append({
+                        "direction": cash_dir,
+                        "amount": interest,
+                        "category": "interest",
+                        "reference": reference,
+                    })
+                _recompute_day_totals(day_entry)
+
+                schedule.append({
+                    "date": _fmt_date(pay_date),
+                    "interest": interest,
+                    "principal": principal_comp,
+                    "total": total,
+                    "remaining_after": remaining,
+                })
+
+            # Final payment: last interest + full principal
+            final_date = maturity
+            final_interest = monthly_interest
+            final_principal = round(remaining, 2)
+            total_final = round(final_interest + final_principal, 2)
+            remaining = 0.0
+
+            day_entry = _ensure_ledger_day(ledger, final_date)
+            if final_interest > 0:
+                day_entry["items"].append({
+                    "direction": cash_dir,
+                    "amount": final_interest,
+                    "category": "interest",
+                    "reference": reference,
+                })
+            if final_principal > 0:
+                day_entry["items"].append({
+                    "direction": cash_dir,
+                    "amount": final_principal,
+                    "category": "loan_principal",
+                    "reference": reference,
+                })
+            _recompute_day_totals(day_entry)
+
+
+        return
+"""
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################ read data########################################################################################################
@@ -433,8 +541,15 @@ for loan in loans:
 
 _recompute_all(ledger)
 
-"""
+with open("ledger.json", "w") as f:
+    json.dump(ledger, f, indent=2)
 
+df_loans = pd.read_excel('Current Portfolio.xlsx', sheet_name='Current')
+current_loans = df_loans.to_json()
+with open("current_loans.json", "w") as f:
+    json.dump(current_loans, f, indent=2)
+
+"""
 with open("ledger.json") as f:
     ledger = json.load(f)
 
@@ -479,26 +594,33 @@ def ledger_to_df(ledger):
     return df
 
 def compute_weekly_summary(df):
-    summary = df.groupby(["week", "direction"])["amount"].sum().unstack(fill_value=0)
-    summary["net"] = summary.get("inflow", 0) - summary.get("outflow", 0)
+    summary = df.groupby(["week", "category"])["amount"].sum().unstack(fill_value=0)
+    for var in ("loan", 'interest', 'fee', 'tax', "loan_principal", "cash"):
+        if var not in summary.columns:
+            summary[var] = [0] * len(summary)
+    #for var in ("loan",'fee', 'tax'):
+        #summary[var] *= -1
     summary = summary.reset_index()
     return summary
+
 
 df_ledger = ledger_to_df(ledger)
 df_ledger = df_ledger.sort_values('date', ascending=True, kind='mergesort').reset_index(drop=True)
 #df_ledger.to_excel('ledger.xlsx', index=False)
 weekly_summary = compute_weekly_summary(df_ledger)
-
 df_loans = pd.read_json(StringIO(current_loans))
-
+for var in ('Date Invested','Maturity Date','Expected Maturity'):
+    df_loans[var] = df_loans[var].apply(lambda x: datetime.utcfromtimestamp(x/1000))
+df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be offered loan
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################ Initialize Dash app########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], prevent_initial_callbacks = True)
+
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, prevent_initial_callbacks = True)
 server = app.server
-port_number = 1050
+#port_number = 1050
 app.title = "KeyInvest Investment Analyzer"
 
 app.layout = dbc.Container([
@@ -506,31 +628,10 @@ app.layout = dbc.Container([
     dbc.Row([dbc.Col([#html.Div("Menu", className="menu-header mb-3"),
                     #dbc.Button("Current Invested", id="btn-1", color="secondary", className="mb-2 w-100"),
                     dbc.Button("Cash Flow Monitor", id="btn-2", color="secondary", className="mb-2 w-100"),
-                    dbc.Button("Loan Selection", id="btn-3", color="secondary", className="mb-2 w-100",),
+                    dbc.Button("Loan Selection (in progress)", id="btn-3", color="secondary", className="mb-2 w-100",),
                     ], width=2, className="bg-light vh-100 p-3",),
                 dbc.Col(html.Div(id="right-content", className="p-3"), width=9, className="p-3",),])], fluid=True,)
 
-"""
-@app.callback(
-    Output("right-content", "children", allow_duplicate = True),
-    [Input("btn-1", "n_clicks")],
-    prevent_initial_callbacks=True
-)
-
-def display_right_1(btn1_clicks):
-    return html.Div([
-        dbc.Row([dbc.Col(html.Label("Current Holdings", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
-        dash_table.DataTable(
-            id="table-current-holdings",
-            columns=[{"name": col, "id": col} for col in df_loans.columns],
-            data=pd.DataFrame(df_loans).to_dict('records'),
-            editable=False,
-            style_table={'overflowX': 'auto', 'border': '1px solid #ddd', 'minWidth': '100%', },  # 'margin': '20px auto'
-            style_cell={'textAlign': 'center', 'padding': '8px', 'font-family': 'Arial'},
-            style_header={'backgroundColor': color_ACblue, 'fontWeight': 'bold', 'borderBottom': '2px solid #ccc', 'textAlign': 'center', 'font-family': 'Arial', 'padding': '10px'},
-            style_data={'border': '1px solid #ddd', 'textAlign': 'center', 'font-family': 'Arial', 'padding': '10px'}, ),
-    ])
-"""
 @app.callback(
     Output("right-content", "children", allow_duplicate = True),
     [Input("btn-2", "n_clicks")],
@@ -539,8 +640,8 @@ def display_right_1(btn1_clicks):
 
 def display_right_2(btn2_clicks):
     return html.Div([
-        dbc.Row([dbc.Col(dbc.Button("Table of Current Holdings", id="show-modal", color="primary", n_clicks=0), width="auto", className="mt-3"),], justify="start"),
-        html.Div(id="current-holding-modal",
+        dbc.Row([dbc.Col(dbc.Button("Table of Loan Details", id="show-modal", color="primary", n_clicks=0), width="auto", className="mt-3"),], justify="start"),
+        html.Div(id="loan-modal",
                  style={"display": "none", "position": "fixed", "top": "0", "left": "0", "width": "100%", "height": "75%", "backgroundColor": "rgba(0,0,0,0.5)", "zIndex": "1000",
                         "justifyContent": "center", "alignItems": "center", },
                  children=[html.Div(
@@ -549,7 +650,7 @@ def display_right_2(btn2_clicks):
                      children=[
                          html.Button("X", id="close-modal", n_clicks=0,
                                      style={"position": "absolute", "top": "10px", "right": "10px", "background": "transparent", "border": "none", "fontSize": "16px", "cursor": "pointer", }),
-                         html.H4("Current Holdings"),
+                         html.H4("Loan Universe"),
                          dash_table.DataTable(
                              id="table-current-holdings",
                              columns=[{"name": col, "id": col} for col in df_loans.columns],
@@ -564,30 +665,19 @@ def display_right_2(btn2_clicks):
                  )],
                  ),
 
-        html.Br(),
-        dbc.Row([dbc.Col(html.Label("Portfolio Summary", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
-
-
-
-
+        dcc.Store(id='default-date', data=_fmt_date(datetime.today() - timedelta(days=datetime.today().weekday()))),
         html.Br(),
         dbc.Row([dbc.Col(html.Label("Cash Flow Analysis", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
         dcc.Graph(
             id='weekly-cashflow-chart',
             figure={
                 "data": [
-                    go.Bar(
-                        x=weekly_summary["week"],
-                        y=weekly_summary.get("inflow", 0),
-                        name="Inflow",
-                        marker_color="green"
-                    ),
-                    go.Bar(
-                        x=weekly_summary["week"],
-                        y=-weekly_summary.get("outflow", 0),
-                        name="Outflow",
-                        marker_color="red"
-                    ),
+                    go.Bar(x=weekly_summary["week"], y=weekly_summary["loan"] * -1, name="Loan Investment", marker_color=color_ACorange60),
+                    go.Bar(x=weekly_summary["week"], y=weekly_summary["interest"], name="Interest", marker_color=color_ACgreen),
+                    go.Bar(x=weekly_summary["week"],y=weekly_summary["loan_principal"],name="Loan Principal", marker_color=color_ACblue),
+                    go.Bar( x=weekly_summary["week"],y=weekly_summary["cash"],name="Cash",marker_color="yellow"),
+                    go.Bar(x=weekly_summary["week"],y=weekly_summary["fee"] * -1,name="Fee",marker_color="pink"),
+                    go.Bar(x=weekly_summary["week"],y=weekly_summary["tax"]* -1, name="Tax", marker_color="red"),
                 ],
                 "layout": go.Layout(
                     title="Weekly Cash Flow (Inflow / Outflow)",
@@ -598,16 +688,18 @@ def display_right_2(btn2_clicks):
                 )
             }
         ),
-        html.Div(id='week-details', children=[
-            html.H4("Select a bar to see daily breakdown.")
-        ])
+        dbc.Row([dbc.Col(html.Label("Click on the bar to see daily breakdown.", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
+        html.Br(),
+        html.Div(id='week-details')
+        #children=[ #html.H4("Select a bar to see daily breakdown.")])
     ])
 
 @app.callback(
-    Output("current-holding-modal", "style"),
+    Output("loan-modal", "style"),
     [Input("show-modal", "n_clicks"), Input("close-modal", "n_clicks")],
-    State("current-holding-modal", "style")
+    State("loan-modal", "style")
 )
+
 def toggle_modal(show_clicks, close_clicks, current_style):
     ctx_triggered = dash.ctx.triggered_id
     if ctx_triggered == "show-modal":
@@ -621,42 +713,77 @@ def toggle_modal(show_clicks, close_clicks, current_style):
 
 @app.callback(
     Output('week-details', 'children'),
-    [Input('weekly-cashflow-chart', 'clickData')]
+    Input('weekly-cashflow-chart', 'clickData'),
+    Input('default-date', 'data'),
+    prevent_initial_call='initial_duplicate'
 )
-def update_weekly_detail(clickData):
-    if clickData is None:
-        return html.Div("Click on a week bar to see details.")
 
-    selected_week = clickData["points"][0]["x"]
+def update_weekly_detail(clickData, default_date):
+    if clickData:
+        selected_week = clickData["points"][0]["x"]
+    else:
+        selected_week = default_date
     week_start = pd.to_datetime(selected_week)
     week_end = week_start + pd.Timedelta(days=4)
 
-    filtered = df_ledger[(df_ledger["date"] >= week_start) & (df_ledger["date"] <= week_end)]
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    ############################  loans ########################################################################################################
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    df_portfolio_summary = pd.DataFrame(columns=('Category', 'Tier 1', 'Tier 2', 'Total'))
+    df_portfolio_summary['Category'] = ["Number of Loans", "Weighted Average LVR", "Weighted Average Return", "Effective Duration", "Average Loan Size"]
+    filtered_loans = df_loans[(pd.to_datetime(df_loans["Maturity Date"]) >= week_end)]
+    filtered_level1 = filtered_loans[filtered_loans['Level'] == 1]
+    filtered_level2 = filtered_loans[filtered_loans['Level'] == 2]
+    lvr_end_week = (filtered_loans['LVR'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum()
+    lvr_end_week1 = (filtered_level1['LVR'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum()
+    lvr_end_week2 = (filtered_level2['LVR'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum()
 
+    tr = (filtered_loans['Interest Rate'] * filtered_loans['Amount'] / filtered_loans['Amount'].sum()).sum()
+    tr1 = (filtered_level1['Interest Rate'] * filtered_level1['Amount'] / filtered_level1['Amount'].sum()).sum()
+    tr2 = (filtered_level2['Interest Rate'] * filtered_level2['Amount'] / filtered_level2['Amount'].sum()).sum()
+
+    df_portfolio_summary['Tier 1'] = [len(filtered_level1), lvr_end_week1, tr, '', filtered_level1['Amount'].mean()]
+    df_portfolio_summary['Tier 2'] = [len(filtered_level2), lvr_end_week2, tr1, '', filtered_level2['Amount'].mean()]
+    df_portfolio_summary['Total'] = [len(filtered_loans), lvr_end_week, tr2, '', filtered_loans['Amount'].mean()]
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    ############################  week plot and transactoins ########################################################################################################
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    filtered = df_ledger[(df_ledger["date"] >= week_start) & (df_ledger["date"] <= week_end)]
     if filtered.empty:
         return html.Div(f"No data for week of {selected_week}")
-
-    daily_summary = filtered.groupby(["date", "direction"])["amount"].sum().unstack(fill_value=0).reset_index()
+    daily_summary = filtered.groupby(["date", "category"])["amount"].sum().unstack(fill_value=0).reset_index()
     daily_summary.drop(columns=[''], inplace=True)
     daily_summary['date'] = daily_summary['date'].dt.date
-    for col in ('inflow', 'outflow'):
-        if col not in daily_summary.columns:
-            daily_summary[col] = [0] * len(daily_summary)
-    #daily_summary["net"] = daily_summary.get("inflow", 0) - daily_summary.get("outflow", 0)
 
-    notes_in_week = {
-        date: ledger[_fmt_date(date)].get("note", [])
-        for date in daily_summary["date"]
-    }
+    for var in ("loan", 'interest', 'fee', 'tax', "loan_principal", "cash"):
+        if var not in daily_summary.columns:
+            daily_summary[var] = [0] * len(daily_summary)
 
+    daily_summary['reference'] = filtered.groupby(['date', 'category'])['reference'].unique().reset_index()['reference']
+    daily_summary['reference'] = daily_summary['reference'].apply(lambda x: ','.join(x) if isinstance(x, list) else str(x))
+
+    notes_in_week = {date: ledger[_fmt_date(date)].get("note", []) for date in daily_summary["date"]}
+
+    ########################################################################################################################################################
+    ########################################################################################################################################################
+    ############################  output ########################################################################################################
+    ########################################################################################################################################################
+    ########################################################################################################################################################
     return html.Div([
         html.H4(f"Details for week: {selected_week}"),
         dcc.Graph(
             figure=go.Figure(
                 data=[
-                    go.Bar(x=daily_summary["date"], y=daily_summary["inflow"], name="Inflow", marker_color="green"),
-                    go.Bar(x=daily_summary["date"], y=-daily_summary["outflow"], name="Outflow", marker_color="red"),
-                    #go.Bar(x=daily_summary["date"], y=daily_summary["net"], name="Net", marker_color="blue")
+                    go.Bar(x=daily_summary["date"], y=daily_summary["loan"]*-1, name="Loan Investment", marker_color=color_ACorange60),
+                    go.Bar(x=daily_summary["date"], y=daily_summary["interest"], name="Interest", marker_color=color_ACgreen),
+                    go.Bar(x=daily_summary["date"], y=daily_summary["loan_principal"], name="Loan Principal", marker_color=color_ACblue),
+                    go.Bar(x=daily_summary["date"], y=daily_summary["cash"], name="Cash", marker_color="yellow"),
+                    go.Bar(x=daily_summary["date"], y=daily_summary["fee"]*-1, name="Fee", marker_color="pink"),
+                    go.Bar(x=daily_summary["date"], y=daily_summary["tax"]*-1, name="Tax", marker_color="red"),
                 ],
                 layout=go.Layout(
                     title="Daily Cash Flow Breakdown",
@@ -667,6 +794,21 @@ def update_weekly_detail(clickData):
                 )
             )
         ),
+
+        html.Br(),
+        dbc.Row([dbc.Col(html.Label("Portfolio Summary", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
+        dash_table.DataTable(
+            id="table-portfolio-summary",
+            columns=[{"name": col, "id": col,"type": "numeric","format": Format(precision=1, scheme=Scheme.fixed)  # <-- 1 decimal place
+                } if pd.api.types.is_numeric_dtype(df_portfolio_summary[col]) else {"name": col, "id": col} for col in df_portfolio_summary.columns],
+            data=pd.DataFrame(df_portfolio_summary).to_dict('records'),
+            editable=False,
+            style_table={'overflowX': 'auto', 'border': '1px solid #ddd', 'minWidth': '100%', },  # 'margin': '20px auto'
+            style_cell={'textAlign': 'center', 'padding': '8px', 'font-family': 'Arial'},
+            style_header={'backgroundColor': color_ACblue, 'fontWeight': 'bold', 'borderBottom': '2px solid #ccc', 'textAlign': 'center', 'font-family': 'Arial', 'padding': '10px'},
+            style_data={'border': '1px solid #ddd', 'textAlign': 'center', 'font-family': 'Arial', 'padding': '10px'}),
+
+        html.Br(),
         html.H5("Transaction Details:"),
         dash_table.DataTable(
             id="table-transaction",
@@ -690,9 +832,9 @@ def update_weekly_detail(clickData):
 
 
 
-
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################################# Loan Analysis#############################################################################################
+
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    #app.run_server(debug=True)
