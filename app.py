@@ -495,63 +495,14 @@ class Loan:
 ############################ read data########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
-"""
-df_loans = pd.read_excel('Current Portfolio.xlsx', sheet_name='Current')
-#df_offered = pd.read_excel('Current Portfolio.xlsx', sheet_name='Offered')
-loans = [Loan(*row) for row in df_loans.itertuples(name=None)]
-df_bbsw = pd.read_excel('Current Portfolio.xlsx', sheet_name='BBSW')
-
-direction = Literal["inflow", "outflow"]
-category = Literal["loan", 'interest', 'fee', 'tax', "loan_principal", "cash"]
-Ledger = Dict[str, dict]
-
-ledger: Ledger = {
-    "2023-08-07": {
-        "opening": 2820000,
-        "items": [{"direction": "outflow", "amount": 2820000,  "category": "loan", "reference": "AMI302"}],
-        "totals": {"inflow": np.nan, "outflow": np.nan},
-        "closing": 0,
-        "note": [],
-    },
-}
-
-for loan in loans:
-    ## assume payment received at the end of invested month
-    date_invested = _fmt_date(loan.date_invested)
-    if loan.loan_ref != 'AMI302':
-        #date_interest_start = end_of_month(loan.date_invested)
-        _ensure_ledger_day(ledger, date_invested)
-        ledger[date_invested]["items"].append({"direction": "outflow", "amount": loan.amount, "category": "loan", "reference": loan.loan_ref})
-
-    add_loan_schedule_to_ledger(
-        ledger=ledger,
-        reference=loan.loan_ref,
-        principal=loan.amount,
-        interest_type=loan.fixed_or_variable,
-        amortise=loan.amortise,
-        payment_start_date=date_invested,
-        payment_maturity_date=_fmt_date(loan.maturity_date),
-        annual_interest=loan.interest_rate,
-        bbsw_type=loan.reference,
-        bbsw=df_bbsw
-    )
-
-_recompute_all(ledger)
-
-with open("ledger.json", "w") as f:
-    json.dump(ledger, f, indent=2)
-
-df_loans = pd.read_excel('Current Portfolio.xlsx', sheet_name='Current')
-current_loans = df_loans.to_json()
-with open("current_loans.json", "w") as f:
-    json.dump(current_loans, f, indent=2)
-
-"""
 with open("ledger.json") as f:
     ledger = json.load(f)
 
 with open("current_loans.json") as f:
     current_loans = json.load(f)
+
+with open("monthly.json") as f:
+    monthly = json.load(f)
 
 ########################################################################################################################################################
 ########################################################################################################################################################
@@ -609,6 +560,8 @@ df_loans = pd.read_json(StringIO(current_loans))
 for var in ('Date Invested','Maturity Date','Expected Maturity'):
     df_loans[var] = df_loans[var].apply(lambda x: datetime.utcfromtimestamp(x/1000))
 df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be offered loan
+
+
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################ Initialize Dash app########################################################################################################
@@ -783,6 +736,7 @@ def update_weekly_detail(clickData, default_date):
         fig.update_layout(title_text=title, showlegend=True)
         return fig
 
+    graph_loan_status_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Loan Status', 'Loan Status')
     graph_issuer_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Issuer', 'Issuer Allocation')
     graph_type_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Loan Type', 'Loan Type Allocation')
     graph_prop_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Property Type', 'Property Type Allocation')
@@ -818,6 +772,7 @@ def update_weekly_detail(clickData, default_date):
 
         html.Br(),
         dbc.Row([dbc.Col(html.Label("Allocations", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
+        dcc.Graph(figure = graph_loan_status_allocation),
         dcc.Graph(figure = graph_issuer_allocation),
         #html.Br(),
         dcc.Graph(figure = graph_type_allocation),
