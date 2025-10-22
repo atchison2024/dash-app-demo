@@ -618,7 +618,7 @@ df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be 
 ############################ Initialize Dash app########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
-#server = Flask(__name__)
+server = Flask(__name__)
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, prevent_initial_callbacks = True)
 #server = app.server
 #port_number = 1050
