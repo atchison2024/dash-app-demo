@@ -37,6 +37,10 @@ from plotly.subplots import make_subplots
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
+user_name = getpass.getuser()
+docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
+os.chdir(docs_directory)
+
 color_ACdarkblue = "#3D555E"  #BG Grey/Green
 color_ACdarkblue60 = "#86959B"  #BG Grey/Green
 color_ACdarkblue130 = "#223137"  #BG Grey/Green
@@ -271,7 +275,7 @@ def add_loan_schedule_to_ledger(
             """
     else:
         # Interest-only with balloon at maturity
-        monthly_interest = round(principal * r, 2)
+        monthly_interest = round(principal * rates[0], 2)
 
         for k in range(n - 1):
             #pay_date = _add_months(start, k)
@@ -290,7 +294,7 @@ def add_loan_schedule_to_ledger(
             _recompute_day_totals(day_entry)
 
             schedule.append({
-                "date": _fmt_date(pay_date),
+                "date": _fmt_date(pd.to_datetime(payment_maturity_date)),
                 "interest": interest,
                 "principal": principal_comp,
                 "total": total,
@@ -335,7 +339,6 @@ def add_loan_schedule_to_ledger(
 
 
 ######################### Class ####################################
-
 class Loan:
     def __init__(self, name, issuer, fund, loan_ref, project, suburb, post_code, loan_type, property_type, geo_type, state, date_invested, maturity_date, expected_maturity,
         lvr, interest_rate, fixed_or_variable, reference, base_rate_at_inception, current_base_rate, margin, interest_rate_inception_base,
@@ -495,14 +498,64 @@ class Loan:
 ############################ read data########################################################################################################
 ########################################################################################################################################################
 ########################################################################################################################################################
+"""
+df_loans = pd.read_excel('Current Portfolio.xlsx', sheet_name='Current')
+#df_offered = pd.read_excel('Current Portfolio.xlsx', sheet_name='Offered')
+loans = [Loan(*row) for row in df_loans.itertuples(name=None)]
+df_bbsw = pd.read_excel('Current Portfolio.xlsx', sheet_name='BBSW')
+
+direction = Literal["inflow", "outflow"]
+category = Literal["loan", 'interest', 'fee', 'tax', "loan_principal", "cash"]
+Ledger = Dict[str, dict]
+
+ledger: Ledger = {
+    "2023-08-07": {
+        "opening": 2820000,
+        "items": [{"direction": "outflow", "amount": 2820000,  "category": "loan", "reference": "AMI302"}],
+        "totals": {"inflow": np.nan, "outflow": np.nan},
+        "closing": 0,
+        "note": [],
+    },
+}
+
+for loan in loans:
+    ## assume payment received at the end of invested month
+    date_invested = _fmt_date(loan.date_invested)
+    if loan.loan_ref != 'AMI302':
+        #date_interest_start = end_of_month(loan.date_invested)
+        _ensure_ledger_day(ledger, date_invested)
+        ledger[date_invested]["items"].append({"direction": "outflow", "amount": loan.amount, "category": "loan", "reference": loan.loan_ref})
+
+    add_loan_schedule_to_ledger(
+        ledger=ledger,
+        reference=loan.loan_ref,
+        principal=loan.amount,
+        interest_type=loan.fixed_or_variable,
+        amortise=loan.amortise,
+        payment_start_date=date_invested,
+        payment_maturity_date=_fmt_date(loan.maturity_date),
+        annual_interest=loan.interest_rate,
+        bbsw_type=loan.reference,
+        bbsw=df_bbsw
+    )
+
+_recompute_all(ledger)
+
+with open("ledger.json", "w") as f:
+    json.dump(ledger, f, indent=2)
+
+df_loans = pd.read_excel('Current Portfolio.xlsx', sheet_name='Current')
+current_loans = df_loans.to_json()
+with open("current_loans.json", "w") as f:
+    json.dump(current_loans, f, indent=2)
+
+"""
+
 with open("ledger.json") as f:
     ledger = json.load(f)
 
 with open("current_loans.json") as f:
     current_loans = json.load(f)
-
-with open("monthly.json") as f:
-    monthly = json.load(f)
 
 ########################################################################################################################################################
 ########################################################################################################################################################
@@ -560,8 +613,6 @@ df_loans = pd.read_json(StringIO(current_loans))
 for var in ('Date Invested','Maturity Date','Expected Maturity'):
     df_loans[var] = df_loans[var].apply(lambda x: datetime.utcfromtimestamp(x/1000))
 df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be offered loan
-
-
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################ Initialize Dash app########################################################################################################
@@ -569,7 +620,7 @@ df_loans_offered = pd.read_json(StringIO(current_loans)) ## temporary should be 
 ########################################################################################################################################################
 #server = Flask(__name__)
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, prevent_initial_callbacks = True)
-server = app.server
+#server = app.server
 #port_number = 1050
 app.title = "KeyInvest Investment Analyzer"
 
@@ -681,7 +732,7 @@ def update_weekly_detail(clickData, default_date):
     ############################  loans ########################################################################################################
     ########################################################################################################################################################
     ########################################################################################################################################################
-    df_portfolio_summary = pd.DataFrame(columns=('Category', 'Tier 1', 'Tier 2', 'Total'))
+    df_portfolio_summary = pd.DataFrame(columns=('Category', 'Tier 1', 'Tier 2', 'Total')) #
     df_portfolio_summary['Category'] = ["Number of Loans", "Weighted Average LVR", "Weighted Average Return", "Effective Duration", "Average Loan Size"]
     filtered_loans = df_loans[(pd.to_datetime(df_loans["Maturity Date"]) >= week_end)]
     filtered_level1 = filtered_loans[filtered_loans['Level'] == 1]
@@ -700,6 +751,10 @@ def update_weekly_detail(clickData, default_date):
     for col in ('Tier 1', 'Tier 2', 'Total'):
         df_portfolio_summary[col] = df_portfolio_summary[col].round(1)
     df_portfolio_summary.loc[4, ['Tier 1', 'Tier 2', 'Total']] = df_portfolio_summary.loc[4, ['Tier 1', 'Tier 2', 'Total']].apply(lambda x: f"${x:,.1f}")
+    df_portfolio_summary.loc[2, 'Total'] = '' ## to be deleted
+    del df_portfolio_summary['Tier 1']
+    del df_portfolio_summary['Tier 2']
+
     ########################################################################################################################################################
     ########################################################################################################################################################
     ############################  week plot and transactoins ########################################################################################################
@@ -725,10 +780,10 @@ def update_weekly_detail(clickData, default_date):
     ############################  Allocations ########################################################################################################
     ########################################################################################################################################################
     ########################################################################################################################################################
-    def create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, group_col, title):
+    def create_pie_subplots_old(filtered_loans, filtered_level1, filtered_level2, group_col, title):
         df_main = filtered_loans.groupby(group_col)['Amount'].sum().reset_index()
-        df_lvl1 = filtered_level1.groupby(group_col)['Amount'].sum().reset_index()
-        df_lvl2 = filtered_level2.groupby(group_col)['Amount'].sum().reset_index()
+        #df_lvl1 = filtered_level1.groupby(group_col)['Amount'].sum().reset_index()
+        #df_lvl2 = filtered_level2.groupby(group_col)['Amount'].sum().reset_index()
         fig = make_subplots(rows=1, cols=3,  subplot_titles=("Total", "Tier 1", "Tier 2"), specs=[[{"type": "domain"}, {"type": "domain"}, {"type": "domain"}]])
         for i, df in enumerate([df_main, df_lvl1, df_lvl2], start=1):
             fig.add_trace(go.Pie(labels=df[group_col], values=df["Amount"], name="Amount"),row=1, col=i)
@@ -736,7 +791,17 @@ def update_weekly_detail(clickData, default_date):
         fig.update_layout(title_text=title, showlegend=True)
         return fig
 
-    graph_loan_status_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Loan Status', 'Loan Status')
+    def create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, group_col, title):
+        df_main = filtered_loans.groupby(group_col)['Amount'].sum().reset_index()
+        df_lvl1 = filtered_level1.groupby(group_col)['Amount'].sum().reset_index()
+        df_lvl2 = filtered_level2.groupby(group_col)['Amount'].sum().reset_index()
+        fig = make_subplots(rows=1, cols=3, specs=[[{"type": "domain"}, {"type": "domain"}, {"type": "domain"}]]) #, subplot_titles=("Total", "Tier 1", "Tier 2")
+        for i, df in enumerate([df_main, df_lvl1, df_lvl2], start=1):
+            fig.add_trace(go.Pie(labels=df[group_col], values=df["Amount"], name="Amount"), row=1, col=i)
+        fig.update_traces(textinfo="percent+label", hole=0.3)
+        fig.update_layout(title_text=title, showlegend=True)
+        return fig
+
     graph_issuer_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Issuer', 'Issuer Allocation')
     graph_type_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Loan Type', 'Loan Type Allocation')
     graph_prop_allocation = create_pie_subplots(filtered_loans, filtered_level1, filtered_level2, 'Property Type', 'Property Type Allocation')
@@ -772,7 +837,6 @@ def update_weekly_detail(clickData, default_date):
 
         html.Br(),
         dbc.Row([dbc.Col(html.Label("Allocations", style={"fontSize": "20px", "color": color_ACblue, 'font-family': 'Arial'}))]),
-        dcc.Graph(figure = graph_loan_status_allocation),
         dcc.Graph(figure = graph_issuer_allocation),
         #html.Br(),
         dcc.Graph(figure = graph_type_allocation),
@@ -816,5 +880,12 @@ def update_weekly_detail(clickData, default_date):
 ########################################################################################################################################################
 ########################################################################################################################################################
 ############################################# Loan Analysis#############################################################################################
-if __name__ == "__main__":
-    app.run_server(debug=True)
+
+import socket
+hostname = socket.gethostname()
+local_ip = socket.gethostbyname(hostname)
+if __name__ == '__main__':
+    app.run_server(host = local_ip, port = 1050, debug=True)
+
+#if __name__ == "__main__":
+    #app.run_server(debug=True)
