@@ -37,9 +37,9 @@ from plotly.subplots import make_subplots
 np.random.seed(2025)
 
 ########################### SETUP DIRECTORY ####################################
-user_name = getpass.getuser()
-docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
-os.chdir(docs_directory)
+#user_name = getpass.getuser()
+#docs_directory = 'C:/Users/' + user_name + '/Atchison Consultants/Atchison - Documents/Atchison/CLIENTS/KeyInvest/KeyInvest Python/'
+#os.chdir(docs_directory)
 
 color_ACdarkblue = "#3D555E"  #BG Grey/Green
 color_ACdarkblue60 = "#86959B"  #BG Grey/Green
