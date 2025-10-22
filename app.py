@@ -881,11 +881,5 @@ def update_weekly_detail(clickData, default_date):
 ########################################################################################################################################################
 ############################################# Loan Analysis#############################################################################################
 
-import socket
-hostname = socket.gethostname()
-local_ip = socket.gethostbyname(hostname)
-if __name__ == '__main__':
-    app.run_server(host = local_ip, port = 1050, debug=True)
-
-#if __name__ == "__main__":
-    #app.run_server(debug=True)
+if __name__ == "__main__":
+    app.run_server(debug=True)
